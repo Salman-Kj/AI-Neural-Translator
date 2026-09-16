@@ -496,7 +496,7 @@ def clean_translation(text):
 
 
 # ============================================================
-# GOOGLE TRANSLATE REQUEST
+# TRANSLATION SERVICES
 # ============================================================
 
 def google_translate(
@@ -529,12 +529,8 @@ def google_translate(
                 "AppleWebKit/537.36 "
                 "(KHTML, like Gecko) "
                 "Chrome/153.0 Safari/537.36",
-
-            "Accept":
-                "application/json",
-
-            "Accept-Language":
-                "en-US,en;q=0.9"
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9"
         }
     )
 
@@ -543,13 +539,9 @@ def google_translate(
         timeout=20
     ) as response:
 
-        raw_data = response.read().decode(
-            "utf-8"
-        )
+        raw_data = response.read().decode("utf-8")
 
-    data = json.loads(
-        raw_data
-    )
+    data = json.loads(raw_data)
 
     translated_parts = []
 
@@ -571,19 +563,66 @@ def google_translate(
                     str(segment[0])
                 )
 
-    translated = "".join(
-        translated_parts
+    translated = "".join(translated_parts)
+
+    if not translated:
+        raise Exception("No translation was returned.")
+
+    return clean_translation(translated)
+
+
+def mymemory_translate(
+    text,
+    source_lang,
+    target_lang
+):
+
+    encoded_text = urllib.parse.quote(
+        text,
+        safe=""
+    )
+
+    url = (
+        "https://api.mymemory.translated.net/get"
+        f"?q={encoded_text}"
+        f"&langpair={source_lang}|{target_lang}"
+    )
+
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent":
+                "AI-Neural-Translator/1.0"
+        }
+    )
+
+    with urllib.request.urlopen(
+        request,
+        timeout=20
+    ) as response:
+
+        raw_data = response.read().decode("utf-8")
+
+    data = json.loads(raw_data)
+
+    if data.get("responseStatus") != 200:
+
+        raise Exception(
+            data.get(
+                "responseDetails",
+                "MyMemory translation service error."
+            )
+        )
+
+    translated = (
+        data.get("responseData", {})
+        .get("translatedText", "")
     )
 
     if not translated:
+        raise Exception("No translation was returned.")
 
-        raise Exception(
-            "No translation was returned."
-        )
-
-    return clean_translation(
-        translated
-    )
+    return clean_translation(translated)
 
 
 # ============================================================
@@ -600,20 +639,18 @@ def translate_text(
     target_lang
 ):
 
-    text = clean_translation(
-        text
-    )
+    text = clean_translation(text)
 
     if not text:
-
-        raise Exception(
-            "Please enter some text."
-        )
+        raise Exception("Please enter some text.")
 
     if source_lang == target_lang:
-
         return text
 
+    errors = []
+
+    # First try Google. This is the same service that
+    # normally works on the local machine.
     try:
 
         translated = google_translate(
@@ -622,60 +659,48 @@ def translate_text(
             target_lang
         )
 
-        if not translated:
-
-            raise Exception(
-                "Empty translation received."
-            )
-
-        return translated
-
-    except urllib.error.HTTPError as e:
-
-        if e.code == 429:
-
-            raise Exception(
-                "The translation service is "
-                "temporarily rate-limited. "
-                "Please wait a few seconds and "
-                "try again."
-            )
-
-        elif e.code == 403:
-
-            raise Exception(
-                "The translation service "
-                "blocked this request. "
-                "Please try again later."
-            )
-
-        else:
-
-            raise Exception(
-                f"Translation service error "
-                f"(HTTP {e.code})."
-            )
-
-    except urllib.error.URLError:
-
-        raise Exception(
-            "Unable to connect to the "
-            "translation service. "
-            "Please check your internet connection."
-        )
-
-    except json.JSONDecodeError:
-
-        raise Exception(
-            "The translation service returned "
-            "an invalid response."
-        )
+        if translated:
+            return translated
 
     except Exception as e:
 
-        raise Exception(
-            str(e)
+        errors.append(
+            f"Google: {str(e)}"
         )
+
+    # If Google blocks/rate-limits the deployed server,
+    # automatically try MyMemory instead.
+    try:
+
+        translated = mymemory_translate(
+            text,
+            source_lang,
+            target_lang
+        )
+
+        if translated:
+            return translated
+
+    except Exception as e:
+
+        errors.append(
+            f"MyMemory: {str(e)}"
+        )
+
+    # Both services failed.
+    if errors:
+
+        raise Exception(
+            "Both translation services are "
+            "temporarily unavailable. "
+            "Please wait a few seconds and try again."
+        )
+
+    raise Exception(
+        "No translation service returned a result."
+    )
+
+
 
 
 # ============================================================
