@@ -3,6 +3,7 @@ from gtts import gTTS
 import speech_recognition as sr
 import urllib.parse
 import urllib.request
+import urllib.error
 import json
 import io
 import html
@@ -363,7 +364,13 @@ st.markdown(
 # ============================================================
 
 st.markdown(
-    """<div class="hero"><h1>✨ AI Neural Translator</h1><p>Translate • Speak • Listen • Understand</p><p>CodeAlpha AI Internship — Task 1</p></div>""",
+    """
+    <div class="hero">
+        <h1>✨ AI Neural Translator</h1>
+        <p>Translate • Speak • Listen • Understand</p>
+        <p>CodeAlpha AI Internship — Task 1</p>
+    </div>
+    """,
     unsafe_allow_html=True
 )
 
@@ -416,11 +423,7 @@ LANGUAGES = {
 # ============================================================
 
 @st.cache_data(ttl=3600)
-def translate_text(
-    text,
-    source_lang,
-    target_lang
-):
+def translate_text(text, source_lang, target_lang):
 
     try:
 
@@ -435,13 +438,13 @@ def translate_text(
         request = urllib.request.Request(
             url,
             headers={
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent": "AI-Neural-Translator/1.0"
             }
         )
 
         with urllib.request.urlopen(
             request,
-            timeout=20
+            timeout=30
         ) as response:
 
             data = json.loads(
@@ -450,12 +453,12 @@ def translate_text(
 
         if data.get("responseStatus") != 200:
 
-            raise Exception(
-                data.get(
-                    "responseDetails",
-                    "Translation service error."
-                )
+            error_message = data.get(
+                "responseDetails",
+                "Translation service is temporarily unavailable."
             )
+
+            raise Exception(error_message)
 
         translated = data.get(
             "responseData",
@@ -468,10 +471,31 @@ def translate_text(
         if not translated:
 
             raise Exception(
-                "No translation returned."
+                "No translation was returned by the translation service."
             )
 
         return translated.strip()
+
+    except urllib.error.HTTPError as e:
+
+        if e.code == 429:
+
+            raise Exception(
+                "Translation service is temporarily "
+                "rate-limited. Please wait a few seconds "
+                "and try again."
+            )
+
+        raise Exception(
+            f"Translation service error (HTTP {e.code})."
+        )
+
+    except urllib.error.URLError:
+
+        raise Exception(
+            "Could not connect to the translation service. "
+            "Please check your internet connection."
+        )
 
     except Exception as e:
 
@@ -601,7 +625,6 @@ st.markdown(
 )
 
 lang_col1, lang_col2 = st.columns(2)
-
 
 with lang_col1:
 
@@ -761,7 +784,17 @@ with output_col:
         )
 
         st.markdown(
-            f"""<div class="result-card"><div class="result-label">🔤 Original • {html.escape(source_lang_name)}</div><div class="result-text">{safe_original}</div></div>""",
+            f"""
+            <div class="result-card">
+                <div class="result-label">
+                    🔤 Original • {html.escape(source_lang_name)}
+                </div>
+
+                <div class="result-text">
+                    {safe_original}
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
@@ -779,14 +812,34 @@ with output_col:
             )
 
             st.markdown(
-                f"""<div class="result-card"><div class="result-label">🌍 Translated • {html.escape(target_lang_name)}</div><div class="result-text">{safe_translation}</div></div>""",
+                f"""
+                <div class="result-card">
+                    <div class="result-label">
+                        🌍 Translated • {html.escape(target_lang_name)}
+                    </div>
+
+                    <div class="result-text">
+                        {safe_translation}
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-                """<div class="result-card"><div class="result-label">🌍 Translation</div><div class="result-text">Your translation will appear here...</div></div>""",
+                """
+                <div class="result-card">
+                    <div class="result-label">
+                        🌍 Translation
+                    </div>
+
+                    <div class="result-text">
+                        Your translation will appear here...
+                    </div>
+                </div>
+                """,
                 unsafe_allow_html=True
             )
 
@@ -826,6 +879,7 @@ with output_col:
                 "Voice output is unavailable for this language."
             )
 
+
     st.markdown(
         '</div>',
         unsafe_allow_html=True
@@ -845,7 +899,7 @@ translate_col1, translate_col2, translate_col3 = st.columns(
 with translate_col2:
 
     if st.button(
-        "🔄Translate Now"
+        "🔄 Translate Now"
     ):
 
         text_to_translate = source_text.strip()
@@ -919,10 +973,17 @@ with clear_col2:
 # ============================================================
 
 st.markdown(
-    """<div style="text-align:center; color:#64748b; font-size:0.85rem; padding:20px;">
-✨ AI Neural Translator<br>
-CodeAlpha AI Internship — Task 1<br>
-Translate • Speak • Listen
-</div>""",
+    """
+    <div style="
+        text-align:center;
+        color:#64748b;
+        font-size:0.85rem;
+        padding:20px;
+    ">
+        ✨ AI Neural Translator<br>
+        CodeAlpha AI Internship — Task 1<br>
+        Translate • Speak • Listen
+    </div>
+    """,
     unsafe_allow_html=True
 )
