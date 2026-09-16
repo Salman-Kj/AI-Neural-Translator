@@ -3,11 +3,9 @@ from gtts import gTTS
 import speech_recognition as sr
 import urllib.parse
 import urllib.request
-import urllib.error
 import json
 import io
 import html
-import re
 
 
 # ============================================================
@@ -365,13 +363,7 @@ st.markdown(
 # ============================================================
 
 st.markdown(
-    """
-    <div class="hero">
-        <h1>✨ AI Neural Translator</h1>
-        <p>Translate • Speak • Listen • Understand</p>
-        <p>CodeAlpha AI Internship — Task 1</p>
-    </div>
-    """,
+    """<div class="hero"><h1>✨ AI Neural Translator</h1><p>Translate • Speak • Listen • Understand</p><p>CodeAlpha AI Internship — Task 1</p></div>""",
     unsafe_allow_html=True
 )
 
@@ -420,287 +412,70 @@ LANGUAGES = {
 
 
 # ============================================================
-# CLEAN TEXT
-# ============================================================
-
-def clean_translation(text):
-
-    if not text:
-        return ""
-
-    text = str(text)
-
-    # Decode HTML entities several times
-    for _ in range(3):
-
-        decoded = html.unescape(text)
-
-        if decoded == text:
-            break
-
-        text = decoded
-
-    # Convert BR tags to new lines
-    text = re.sub(
-        r"<\s*br\s*/?\s*>",
-        "\n",
-        text,
-        flags=re.IGNORECASE
-    )
-
-    # Remove script/style blocks
-    text = re.sub(
-        r"<\s*(script|style).*?>.*?<\s*/\s*\1\s*>",
-        "",
-        text,
-        flags=re.IGNORECASE | re.DOTALL
-    )
-
-    # Remove all remaining HTML/XML tags
-    text = re.sub(
-        r"<[^>]*>",
-        "",
-        text
-    )
-
-    # Remove encoded HTML tags if any remain
-    text = re.sub(
-        r"&lt;/?[^&]+&gt;",
-        "",
-        text,
-        flags=re.IGNORECASE
-    )
-
-    # Clean invisible control characters
-    text = re.sub(
-        r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]",
-        "",
-        text
-    )
-
-    # Normalize spaces
-    text = re.sub(
-        r"[ \t]+",
-        " ",
-        text
-    )
-
-    # Normalize excessive blank lines
-    text = re.sub(
-        r"\n{3,}",
-        "\n\n",
-        text
-    )
-
-    return text.strip()
-
-
-# ============================================================
-# TRANSLATION SERVICES
-# ============================================================
-
-def google_translate(
-    text,
-    source_lang,
-    target_lang
-):
-
-    encoded_text = urllib.parse.quote(
-        text,
-        safe=""
-    )
-
-    url = (
-        "https://translate.googleapis.com/"
-        "translate_a/single"
-        f"?client=gtx"
-        f"&sl={source_lang}"
-        f"&tl={target_lang}"
-        f"&dt=t"
-        f"&q={encoded_text}"
-    )
-
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent":
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/153.0 Safari/537.36",
-            "Accept": "application/json",
-            "Accept-Language": "en-US,en;q=0.9"
-        }
-    )
-
-    with urllib.request.urlopen(
-        request,
-        timeout=20
-    ) as response:
-
-        raw_data = response.read().decode("utf-8")
-
-    data = json.loads(raw_data)
-
-    translated_parts = []
-
-    if (
-        isinstance(data, list)
-        and len(data) > 0
-        and isinstance(data[0], list)
-    ):
-
-        for segment in data[0]:
-
-            if (
-                isinstance(segment, list)
-                and len(segment) > 0
-                and segment[0]
-            ):
-
-                translated_parts.append(
-                    str(segment[0])
-                )
-
-    translated = "".join(translated_parts)
-
-    if not translated:
-        raise Exception("No translation was returned.")
-
-    return clean_translation(translated)
-
-
-def mymemory_translate(
-    text,
-    source_lang,
-    target_lang
-):
-
-    encoded_text = urllib.parse.quote(
-        text,
-        safe=""
-    )
-
-    url = (
-        "https://api.mymemory.translated.net/get"
-        f"?q={encoded_text}"
-        f"&langpair={source_lang}|{target_lang}"
-    )
-
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent":
-                "AI-Neural-Translator/1.0"
-        }
-    )
-
-    with urllib.request.urlopen(
-        request,
-        timeout=20
-    ) as response:
-
-        raw_data = response.read().decode("utf-8")
-
-    data = json.loads(raw_data)
-
-    if data.get("responseStatus") != 200:
-
-        raise Exception(
-            data.get(
-                "responseDetails",
-                "MyMemory translation service error."
-            )
-        )
-
-    translated = (
-        data.get("responseData", {})
-        .get("translatedText", "")
-    )
-
-    if not translated:
-        raise Exception("No translation was returned.")
-
-    return clean_translation(translated)
-
-
-# ============================================================
 # TRANSLATION FUNCTION
 # ============================================================
 
-@st.cache_data(
-    ttl=86400,
-    show_spinner=False
-)
+@st.cache_data(ttl=3600)
 def translate_text(
     text,
     source_lang,
     target_lang
 ):
 
-    text = clean_translation(text)
-
-    if not text:
-        raise Exception("Please enter some text.")
-
-    if source_lang == target_lang:
-        return text
-
-    errors = []
-
-    # First try Google. This is the same service that
-    # normally works on the local machine.
     try:
 
-        translated = google_translate(
-            text,
-            source_lang,
-            target_lang
+        encoded_text = urllib.parse.quote(text)
+
+        url = (
+            "https://api.mymemory.translated.net/get"
+            f"?q={encoded_text}"
+            f"&langpair={source_lang}|{target_lang}"
         )
 
-        if translated:
-            return translated
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+        )
+
+        with urllib.request.urlopen(
+            request,
+            timeout=20
+        ) as response:
+
+            data = json.loads(
+                response.read().decode("utf-8")
+            )
+
+        if data.get("responseStatus") != 200:
+
+            raise Exception(
+                data.get(
+                    "responseDetails",
+                    "Translation service error."
+                )
+            )
+
+        translated = data.get(
+            "responseData",
+            {}
+        ).get(
+            "translatedText",
+            ""
+        )
+
+        if not translated:
+
+            raise Exception(
+                "No translation returned."
+            )
+
+        return translated.strip()
 
     except Exception as e:
 
-        errors.append(
-            f"Google: {str(e)}"
-        )
-
-    # If Google blocks/rate-limits the deployed server,
-    # automatically try MyMemory instead.
-    try:
-
-        translated = mymemory_translate(
-            text,
-            source_lang,
-            target_lang
-        )
-
-        if translated:
-            return translated
-
-    except Exception as e:
-
-        errors.append(
-            f"MyMemory: {str(e)}"
-        )
-
-    # Both services failed.
-    if errors:
-
-        raise Exception(
-            "Both translation services are "
-            "temporarily unavailable. "
-            "Please wait a few seconds and try again."
-        )
-
-    raise Exception(
-        "No translation service returned a result."
-    )
-
-
+        raise Exception(str(e))
 
 
 # ============================================================
@@ -724,9 +499,7 @@ def speech_to_text(
 
         with audio_source as source:
 
-            audio_data = recognizer.record(
-                source
-            )
+            audio_data = recognizer.record(source)
 
         speech_languages = {
 
@@ -806,14 +579,12 @@ def create_speech(
     audio = io.BytesIO()
 
     tts = gTTS(
-        text=clean_translation(text),
+        text=text,
         lang=tts_language,
         slow=False
     )
 
-    tts.write_to_fp(
-        audio
-    )
+    tts.write_to_fp(audio)
 
     audio.seek(0)
 
@@ -932,9 +703,7 @@ with input_col:
                         LANGUAGES[source_lang_name]
                     )
 
-                    st.session_state.speech_text = (
-                        detected_text
-                    )
+                    st.session_state.speech_text = detected_text
 
                     st.success(
                         "Speech converted successfully!"
@@ -944,9 +713,7 @@ with input_col:
 
                 except Exception as e:
 
-                    st.error(
-                        str(e)
-                    )
+                    st.error(str(e))
 
     st.markdown(
         '</div>',
@@ -972,7 +739,7 @@ with output_col:
 
 
     # --------------------------------------------------------
-    # RESULT BOXES
+    # SIDE-BY-SIDE RESULT BOXES
     # --------------------------------------------------------
 
     result_col1, result_col2 = st.columns(
@@ -987,30 +754,14 @@ with output_col:
 
     with result_col1:
 
-        original_text = (
+        safe_original = html.escape(
             source_text
             if source_text
             else "Your original text will appear here..."
         )
 
-        safe_original = html.escape(
-            clean_translation(
-                original_text
-            )
-        )
-
         st.markdown(
-            f"""
-            <div class="result-card">
-                <div class="result-label">
-                    🔤 Original • {html.escape(source_lang_name)}
-                </div>
-
-                <div class="result-text">
-                    {safe_original}
-                </div>
-            </div>
-            """,
+            f"""<div class="result-card"><div class="result-label">🔤 Original • {html.escape(source_lang_name)}</div><div class="result-text">{safe_original}</div></div>""",
             unsafe_allow_html=True
         )
 
@@ -1023,43 +774,19 @@ with output_col:
 
         if st.session_state.translated_text:
 
-            cleaned_translation = clean_translation(
+            safe_translation = html.escape(
                 st.session_state.translated_text
             )
 
-            safe_translation = html.escape(
-                cleaned_translation
-            )
-
             st.markdown(
-                f"""
-                <div class="result-card">
-                    <div class="result-label">
-                        🌍 Translated • {html.escape(target_lang_name)}
-                    </div>
-
-                    <div class="result-text">
-                        {safe_translation}
-                    </div>
-                </div>
-                """,
+                f"""<div class="result-card"><div class="result-label">🌍 Translated • {html.escape(target_lang_name)}</div><div class="result-text">{safe_translation}</div></div>""",
                 unsafe_allow_html=True
             )
 
         else:
 
             st.markdown(
-                """
-                <div class="result-card">
-                    <div class="result-label">
-                        🌍 Translation
-                    </div>
-
-                    <div class="result-text">
-                        Your translation will appear here...
-                    </div>
-                </div>
-                """,
+                """<div class="result-card"><div class="result-label">🌍 Translation</div><div class="result-text">Your translation will appear here...</div></div>""",
                 unsafe_allow_html=True
             )
 
@@ -1118,12 +845,10 @@ translate_col1, translate_col2, translate_col3 = st.columns(
 with translate_col2:
 
     if st.button(
-        "🔄 Translate Now"
+        "🔄Translate Now"
     ):
 
-        text_to_translate = clean_translation(
-            source_text.strip()
-        )
+        text_to_translate = source_text.strip()
 
         if not text_to_translate:
 
@@ -1139,17 +864,10 @@ with translate_col2:
 
         else:
 
-            source_code = LANGUAGES[
-                source_lang_name
-            ]
+            source_code = LANGUAGES[source_lang_name]
+            target_code = LANGUAGES[target_lang_name]
 
-            target_code = LANGUAGES[
-                target_lang_name
-            ]
-
-            with st.spinner(
-                "Translating..."
-            ):
+            with st.spinner("Translating..."):
 
                 try:
 
@@ -1159,11 +877,7 @@ with translate_col2:
                         target_code
                     )
 
-                    st.session_state.translated_text = (
-                        clean_translation(
-                            translated
-                        )
-                    )
+                    st.session_state.translated_text = translated
 
                     st.success(
                         "Translation completed!"
@@ -1205,17 +919,10 @@ with clear_col2:
 # ============================================================
 
 st.markdown(
-    """
-    <div style="
-        text-align:center;
-        color:#64748b;
-        font-size:0.85rem;
-        padding:20px;
-    ">
-        ✨ AI Neural Translator<br>
-        CodeAlpha AI Internship — Task 1<br>
-        Translate • Speak • Listen
-    </div>
-    """,
+    """<div style="text-align:center; color:#64748b; font-size:0.85rem; padding:20px;">
+✨ AI Neural Translator<br>
+CodeAlpha AI Internship — Task 1<br>
+Translate • Speak • Listen
+</div>""",
     unsafe_allow_html=True
 )
