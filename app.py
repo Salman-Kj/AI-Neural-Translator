@@ -1,135 +1,931 @@
-# ✨ AI Neural Translator
+import streamlit as st
+from gtts import gTTS
+import speech_recognition as sr
+import urllib.parse
+import urllib.request
+import urllib.error
+import json
+import io
+import html
+import os
+import re
 
-A modern, interactive AI-powered language translation web application built with **Python and Streamlit**. The application allows users to translate text between multiple languages, convert speech into text, and listen to translated text using text-to-speech.
 
-> **CodeAlpha AI Internship — Task 1**
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
----
+st.set_page_config(
+    page_title="AI Neural Translator",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-## 🚀 Project Overview
 
-**AI Neural Translator** is designed to provide a simple and user-friendly translation experience through a modern web interface.
+# ============================================================
+# SESSION STATE
+# ============================================================
 
-The application supports:
+if "dark_mode" not in st.session_state:
+    st.session_state.dark_mode = True
 
-- 🌐 Multi-language text translation
-- 🎙️ Speech input
-- 📝 Speech-to-text conversion
-- 🔊 Text-to-speech voice output
-- 🌙 Dark/Night mode
-- ☀️ Light/Day mode
-- ✨ Modern glassmorphism user interface
-- 📱 Responsive two-column layout
-- 🎨 Interactive buttons and animations
+if "translated_text" not in st.session_state:
+    st.session_state.translated_text = ""
 
----
+if "speech_text" not in st.session_state:
+    st.session_state.speech_text = ""
 
-## 🛠️ Technologies Used
 
-### Programming Language
+# ============================================================
+# DAY / NIGHT THEME
+# ============================================================
 
-- **Python**
+if st.session_state.dark_mode:
 
-### Framework
+    BG = "#070b17"
+    CARD = "rgba(20, 27, 48, 0.72)"
+    TEXT = "#f8fafc"
+    MUTED = "#94a3b8"
+    BORDER = "rgba(129, 140, 248, 0.35)"
+    INPUT_BG = "rgba(15, 23, 42, 0.75)"
+    ACCENT = "#a855f7"
+    ACCENT2 = "#6366f1"
 
-- **Streamlit**
+else:
 
-### APIs & Libraries
+    BG = "#eef2ff"
+    CARD = "rgba(255, 255, 255, 0.78)"
+    TEXT = "#111827"
+    MUTED = "#64748b"
+    BORDER = "rgba(99, 102, 241, 0.30)"
+    INPUT_BG = "rgba(255, 255, 255, 0.90)"
+    ACCENT = "#7c3aed"
+    ACCENT2 = "#4f46e5"
 
-- **MyMemory Translation API** — Text translation
-- **gTTS (Google Text-to-Speech)** — Voice output
-- **SpeechRecognition** — Speech-to-text
-- **urllib** — API communication
-- **JSON** — API response processing
-- **HTML/CSS** — Custom user interface styling
 
----
+# ============================================================
+# CUSTOM CSS
+# ============================================================
 
-## 🌍 Supported Languages
+custom_css = f"""
+<style>
 
-The application currently supports:
+@import url(
+    'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+);
 
-| Language | Code |
-|---|---|
-| English | `en` |
-| Urdu | `ur` |
-| Sindhi | `sd` |
-| Spanish | `es` |
-| French | `fr` |
-| German | `de` |
-| Chinese (Simplified) | `zh-CN` |
-| Arabic | `ar` |
-| Japanese | `ja` |
+* {{
+    font-family: 'Inter', sans-serif;
+}}
 
----
+.stApp {{
+    background:
+        radial-gradient(
+            circle at 10% 20%,
+            rgba(99, 102, 241, 0.18),
+            transparent 30%
+        ),
+        radial-gradient(
+            circle at 90% 80%,
+            rgba(168, 85, 247, 0.18),
+            transparent 30%
+        ),
+        {BG};
 
-## ✨ Features
+    color: {TEXT};
 
-### 1. Text Translation
+    transition:
+        background 0.4s ease,
+        color 0.4s ease;
+}}
 
-Users can enter text and select:
 
-- Source language
-- Target language
+/* Main container */
 
-The application sends the text to the MyMemory Translation API and displays the translated result.
+.block-container {{
+    max-width: 1200px;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}}
 
----
 
-### 2. Speech Input
+/* Header */
 
-Users can record their voice directly through the Streamlit audio input.
+.hero {{
+    text-align: center;
+    padding: 35px 20px 20px 20px;
+    margin-bottom: 20px;
+    border-radius: 25px;
+    background: {CARD};
+    border: 1px solid {BORDER};
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 
-The recorded speech can then be processed using the speech recognition functionality.
+    box-shadow:
+        0 15px 45px rgba(0,0,0,0.12);
+}}
 
----
+.hero h1 {{
+    font-size: 3rem;
+    font-weight: 800;
+    margin: 0 0 8px 0;
 
-### 3. Speech-to-Text
+    background:
+        linear-gradient(
+            90deg,
+            {ACCENT2},
+            {ACCENT}
+        );
 
-The application uses the `SpeechRecognition` library with Google's speech recognition service to convert recorded speech into text.
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}}
 
-This allows users to speak instead of manually typing their text.
+.hero p {{
+    color: {MUTED};
+    font-size: 1rem;
+    margin: 6px 0;
+}}
 
----
 
-### 4. Text-to-Speech
+/* Glass cards */
 
-Translated text can be converted into spoken audio using **gTTS**.
+.glass-card {{
+    background: {CARD};
+    border: 1px solid {BORDER};
+    border-radius: 22px;
+    padding: 25px;
 
-Users can listen to their translated result directly inside the application.
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
 
----
+    box-shadow:
+        0 15px 45px rgba(0,0,0,0.12);
 
-### 5. Day & Night Mode
+    margin-bottom: 20px;
+}}
 
-The application includes a theme switcher that allows users to change between:
 
-- ☀️ Day Mode
-- 🌙 Night Mode
+/* Labels */
 
-The interface dynamically changes its colors and appearance.
+.section-title {{
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: {TEXT};
+}}
 
----
 
-### 6. Modern UI
+/* Text area */
 
-The application uses a custom **glassmorphism-inspired interface** with:
+.stTextArea textarea {{
+    background: {INPUT_BG} !important;
+    color: {TEXT} !important;
 
-- Glass cards
-- Gradient backgrounds
-- Rounded corners
-- Hover effects
-- Smooth animations
-- Modern typography
-- Interactive buttons
+    border: 1px solid {BORDER} !important;
 
----
+    border-radius: 15px !important;
 
-## 📂 Project Structure
+    font-size: 1rem !important;
+    padding: 15px !important;
+}}
 
-```text
-AI-Neural-Translator/
-│
-├── app.py
-├── requirements.txt
-└── README.mds
+
+/* Selectbox */
+
+.stSelectbox > div > div {{
+    background: {INPUT_BG} !important;
+    color: {TEXT} !important;
+
+    border-radius: 14px !important;
+
+    border: 1px solid {BORDER} !important;
+}}
+
+/* Keep selected values and the opened language menu readable in both themes. */
+[data-testid="stSelectbox"] [role="combobox"],
+[data-testid="stSelectbox"] [role="combobox"] *,
+[data-baseweb="popover"] [role="listbox"],
+[data-baseweb="popover"] [role="option"] {{
+    color: {TEXT} !important;
+}}
+
+[data-baseweb="popover"] [role="listbox"] {{
+    background: {INPUT_BG} !important;
+}}
+
+[data-baseweb="popover"] [role="option"]:hover,
+[data-baseweb="popover"] [aria-selected="true"] {{
+    background: {BORDER} !important;
+}}
+
+
+/* Buttons */
+
+.stButton > button {{
+    width: 100%;
+
+    border: none;
+    border-radius: 14px;
+
+    padding: 0.75rem 1rem;
+
+    font-weight: 700;
+    color: white !important;
+
+    background:
+        linear-gradient(
+            90deg,
+            {ACCENT2},
+            {ACCENT}
+        );
+
+    transition: all 0.25s ease;
+
+    box-shadow:
+        0 8px 22px rgba(99,102,241,0.22);
+}}
+
+.stButton > button:hover {{
+    transform:
+        translateY(-3px) scale(1.01);
+
+    box-shadow:
+        0 12px 30px rgba(168,85,247,0.35);
+}}
+
+
+/* Translation result */
+
+.result-card {{
+    background:
+        linear-gradient(
+            135deg,
+            rgba(99,102,241,0.12),
+            rgba(168,85,247,0.12)
+        );
+
+    border: 1px solid {BORDER};
+
+    border-radius: 18px;
+
+    padding: 22px;
+
+    min-height: 150px;
+
+    transition: all 0.25s ease;
+
+    animation: fadeIn 0.5s ease;
+
+    overflow-wrap: anywhere;
+}}
+
+.result-card:hover {{
+    transform:
+        translateY(-4px);
+
+    box-shadow:
+        0 15px 35px rgba(99,102,241,0.18);
+}}
+
+.result-label {{
+    color: {ACCENT};
+
+    font-size: 0.85rem;
+
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    letter-spacing: 1px;
+
+    margin-bottom: 10px;
+}}
+
+.result-text {{
+    color: {TEXT};
+
+    font-size: 1.15rem;
+
+    line-height: 1.7;
+
+    margin-top: 8px;
+
+    word-wrap: break-word;
+
+    overflow-wrap: anywhere;
+
+    white-space: pre-wrap;
+}}
+
+
+/* Divider */
+
+.divider {{
+    height: 1px;
+
+    background: {BORDER};
+
+    margin: 25px 0;
+}}
+
+
+/* Animations */
+
+@keyframes fadeIn {{
+
+    from {{
+        opacity: 0;
+        transform: translateY(10px);
+    }}
+
+    to {{
+        opacity: 1;
+        transform: translateY(0);
+    }}
+
+}}
+
+
+/* Hide Streamlit branding */
+
+#MainMenu {{
+    visibility: hidden;
+}}
+
+footer {{
+    visibility: hidden;
+}}
+
+header {{
+    background: transparent !important;
+}}
+
+
+/* Audio player */
+
+audio {{
+    width: 100%;
+}}
+
+</style>
+"""
+
+st.markdown(
+    custom_css,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    """<div class="hero"><h1>✨ AI Neural Translator</h1><p>Translate • Speak • Listen • Understand</p><p>CodeAlpha AI Internship — Task 1</p></div>""",
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# THEME BUTTON
+# ============================================================
+
+theme_col1, theme_col2, theme_col3 = st.columns(
+    [4, 2, 4]
+)
+
+with theme_col2:
+
+    if st.session_state.dark_mode:
+        theme_button = "☀️ Day Mode"
+    else:
+        theme_button = "🌙 Night Mode"
+
+    if st.button(theme_button):
+
+        st.session_state.dark_mode = (
+            not st.session_state.dark_mode
+        )
+
+        st.rerun()
+
+
+# ============================================================
+# LANGUAGES
+# ============================================================
+
+LANGUAGES = {
+
+    "English": "en",
+    "Urdu": "ur",
+    "Sindhi": "sd",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Chinese (Simplified)": "zh-CN",
+    "Arabic": "ar",
+    "Japanese": "ja"
+
+}
+
+
+# ============================================================
+# TRANSLATION FUNCTION
+# ============================================================
+
+def _split_translation_chunks(text, max_bytes=450):
+    """Split input below MyMemory's 500-byte per-query limit."""
+    chunks = []
+    current = ""
+    for piece in re.findall(r"\s+|[^\s]+", text):
+        if len(piece.encode("utf-8")) > max_bytes:
+            if current:
+                chunks.append(current)
+                current = ""
+            part = ""
+            for char in piece:
+                if len((part + char).encode("utf-8")) > max_bytes:
+                    chunks.append(part)
+                    part = char
+                else:
+                    part += char
+            current = part
+        elif len((current + piece).encode("utf-8")) > max_bytes:
+            chunks.append(current)
+            current = piece
+        else:
+            current += piece
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _translate_chunk(text, source_lang, target_lang):
+    params = {
+        "q": text,
+        "langpair": f"{source_lang}|{target_lang}",
+    }
+    # MyMemory recommends an email for applications and supports an optional key.
+    contact_email = os.getenv("MYMEMORY_EMAIL")
+    api_key = os.getenv("MYMEMORY_API_KEY")
+    if contact_email:
+        params["de"] = contact_email
+    if api_key:
+        params["key"] = api_key
+
+    url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(params)
+    request = urllib.request.Request(url, headers={"User-Agent": "AI-Neural-Translator/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=25) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            raise RuntimeError("The translation service is temporarily rate-limiting requests. Please wait and try again.") from exc
+        raise RuntimeError(f"The translation service returned HTTP {exc.code}. Please try again later.") from exc
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise RuntimeError("Could not reach the translation service. Check the deployment's outbound internet access and try again.") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RuntimeError("The translation service returned an unreadable response. Please try again later.") from exc
+
+    status = data.get("responseStatus")
+    if str(status) != "200":
+        detail = data.get("responseDetails") or "The selected language pair may not be supported."
+        if data.get("quotaFinished"):
+            detail = "The translation service's daily quota has been reached. Try again later or configure a MyMemory API key in the deployment settings."
+        raise RuntimeError(str(detail))
+    result = data.get("responseData", {}).get("translatedText", "").strip()
+    if not result:
+        raise RuntimeError("The translation service returned an empty result.")
+    return result
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def translate_text(text, source_lang, target_lang):
+    """Translate long text in safe-sized chunks and join the results."""
+    chunks = _split_translation_chunks(text.strip())
+    if not chunks:
+        raise RuntimeError("Enter text to translate.")
+    translated_chunks = [
+        _translate_chunk(chunk, source_lang, target_lang)
+        for chunk in chunks
+    ]
+    return "".join(translated_chunks).strip()
+
+
+# ============================================================
+# SPEECH TO TEXT
+# ============================================================
+
+def speech_to_text(
+    audio_file,
+    language_code
+):
+
+    recognizer = sr.Recognizer()
+
+    try:
+
+        audio_bytes = audio_file.getvalue()
+
+        audio_source = sr.AudioFile(
+            io.BytesIO(audio_bytes)
+        )
+
+        with audio_source as source:
+
+            audio_data = recognizer.record(source)
+
+        speech_languages = {
+
+            "en": "en-US",
+            "ur": "ur-PK",
+            "sd": "sd",
+            "es": "es-ES",
+            "fr": "fr-FR",
+            "de": "de-DE",
+            "zh-CN": "zh-CN",
+            "ar": "ar-SA",
+            "ja": "ja-JP"
+
+        }
+
+        recognition_language = speech_languages.get(
+            language_code,
+            "en-US"
+        )
+
+        text = recognizer.recognize_google(
+            audio_data,
+            language=recognition_language
+        )
+
+        return text
+
+    except sr.UnknownValueError:
+
+        raise Exception(
+            "I couldn't understand the speech. "
+            "Please speak clearly and try again."
+        )
+
+    except sr.RequestError:
+
+        raise Exception(
+            "Speech recognition service is unavailable. "
+            "Please check your internet connection."
+        )
+
+    except Exception as e:
+
+        raise Exception(
+            f"Speech recognition error: {str(e)}"
+        )
+
+
+# ============================================================
+# TEXT TO SPEECH
+# ============================================================
+
+def create_speech(
+    text,
+    language_code
+):
+
+    tts_languages = {
+
+        "en": "en",
+        "ur": "ur",
+        "sd": "sd",
+        "es": "es",
+        "fr": "fr",
+        "de": "de",
+        "zh-CN": "zh-CN",
+        "ar": "ar",
+        "ja": "ja"
+
+    }
+
+    tts_language = tts_languages.get(
+        language_code,
+        "en"
+    )
+
+    audio = io.BytesIO()
+
+    tts = gTTS(
+        text=text,
+        lang=tts_language,
+        slow=False
+    )
+
+    tts.write_to_fp(audio)
+
+    audio.seek(0)
+
+    return audio
+
+
+# ============================================================
+# LANGUAGE SELECTION
+# ============================================================
+
+lang_col1, lang_col2 = st.columns(2)
+
+
+with lang_col1:
+
+    st.markdown(
+        '<div class="section-title">🪐 Source Language</div>',
+        unsafe_allow_html=True
+    )
+
+    source_lang_name = st.selectbox(
+        "Source Language",
+        list(LANGUAGES.keys()),
+        label_visibility="collapsed"
+    )
+
+
+with lang_col2:
+
+    st.markdown(
+        '<div class="section-title">☄️ Target Language</div>',
+        unsafe_allow_html=True
+    )
+
+    target_lang_name = st.selectbox(
+        "Target Language",
+        list(LANGUAGES.keys()),
+        index=1,
+        label_visibility="collapsed"
+    )
+
+
+# ============================================================
+# INPUT AND OUTPUT
+# ============================================================
+
+input_col, output_col = st.columns(
+    2,
+    gap="large"
+)
+
+
+# ============================================================
+# INPUT
+# ============================================================
+
+with input_col:
+
+    st.markdown(
+        '<div class="section-title">📜 Enter Your Text</div>',
+        unsafe_allow_html=True
+    )
+
+    source_text = st.text_area(
+        "Text Input",
+        value=st.session_state.speech_text,
+        height=180,
+        placeholder="Type something here...",
+        label_visibility="collapsed"
+    )
+
+    st.markdown(
+        '<div class="divider"></div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-title">🎙️ Speech Input</div>',
+        unsafe_allow_html=True
+    )
+
+    audio_input = st.audio_input(
+        "Record your voice"
+    )
+
+    if audio_input:
+
+        if st.button(
+            "🎤 Convert Speech to Text"
+        ):
+
+            with st.spinner(
+                "Listening and converting speech..."
+            ):
+
+                try:
+
+                    detected_text = speech_to_text(
+                        audio_input,
+                        LANGUAGES[source_lang_name]
+                    )
+
+                    st.session_state.speech_text = detected_text
+
+                    st.success(
+                        "Speech converted successfully!"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(str(e))
+
+# ============================================================
+# OUTPUT
+# ============================================================
+
+with output_col:
+
+    st.markdown(
+        '<div class="section-title">🫧 Translation Result</div>',
+        unsafe_allow_html=True
+    )
+
+
+    # --------------------------------------------------------
+    # SIDE-BY-SIDE RESULT BOXES
+    # --------------------------------------------------------
+
+    result_col1, result_col2 = st.columns(
+        2,
+        gap="medium"
+    )
+
+
+    # --------------------------------------------------------
+    # ORIGINAL TEXT
+    # --------------------------------------------------------
+
+    with result_col1:
+
+        safe_original = html.escape(
+            source_text
+            if source_text
+            else "Your original text will appear here..."
+        )
+
+        st.markdown(
+            f"""<div class="result-card"><div class="result-label">🔤 Original • {html.escape(source_lang_name)}</div><div class="result-text">{safe_original}</div></div>""",
+            unsafe_allow_html=True
+        )
+
+
+    # --------------------------------------------------------
+    # TRANSLATED TEXT
+    # --------------------------------------------------------
+
+    with result_col2:
+
+        if st.session_state.translated_text:
+
+            safe_translation = html.escape(
+                st.session_state.translated_text
+            )
+
+            st.markdown(
+                f"""<div class="result-card"><div class="result-label">🌍 Translated • {html.escape(target_lang_name)}</div><div class="result-text">{safe_translation}</div></div>""",
+                unsafe_allow_html=True
+            )
+
+        else:
+
+            st.markdown(
+                """<div class="result-card"><div class="result-label">🌍 Translation</div><div class="result-text">Your translation will appear here...</div></div>""",
+                unsafe_allow_html=True
+            )
+
+
+    st.markdown(
+        '<div class="divider"></div>',
+        unsafe_allow_html=True
+    )
+
+
+    # ========================================================
+    # VOICE OUTPUT
+    # ========================================================
+
+    if st.session_state.translated_text:
+
+        st.markdown(
+            '<div class="section-title">🔊 Listen to Translation</div>',
+            unsafe_allow_html=True
+        )
+
+        try:
+
+            speech_audio = create_speech(
+                st.session_state.translated_text,
+                LANGUAGES[target_lang_name]
+            )
+
+            st.audio(
+                speech_audio,
+                format="audio/mp3"
+            )
+
+        except Exception:
+
+            st.warning(
+                "Voice output is unavailable for this language."
+            )
+
+# ============================================================
+# TRANSLATE BUTTON
+# ============================================================
+
+st.write("")
+
+translate_col1, translate_col2, translate_col3 = st.columns(
+    [2, 1, 2]
+)
+
+with translate_col2:
+
+    if st.button(
+        "🔄Translate Now"
+    ):
+
+        text_to_translate = source_text.strip()
+
+        if not text_to_translate:
+
+            st.warning(
+                "Please enter text or record your voice first."
+            )
+
+        elif source_lang_name == target_lang_name:
+
+            st.warning(
+                "Please select different source and target languages."
+            )
+
+        else:
+
+            source_code = LANGUAGES[source_lang_name]
+            target_code = LANGUAGES[target_lang_name]
+
+            with st.spinner("Translating..."):
+
+                try:
+
+                    translated = translate_text(
+                        text_to_translate,
+                        source_code,
+                        target_code
+                    )
+
+                    st.session_state.translated_text = translated
+
+                    st.success(
+                        "Translation completed!"
+                    )
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(
+                        f"Translation Error: {str(e)}"
+                    )
+
+
+# ============================================================
+# CLEAR BUTTON
+# ============================================================
+
+st.write("")
+
+clear_col1, clear_col2, clear_col3 = st.columns(
+    [3, 1, 3]
+)
+
+with clear_col2:
+
+    if st.button(
+        "🗑️ Clear"
+    ):
+
+        st.session_state.translated_text = ""
+        st.session_state.speech_text = ""
+
+        st.rerun()
+
+
+# ============================================================
+# FOOTER
+# ============================================================
+
+st.markdown(
+    """<div style="text-align:center; color:#64748b; font-size:0.85rem; padding:20px;">
+✨ AI Neural Translator<br>
+CodeAlpha AI Internship — Task 1<br>
+Translate • Speak • Listen
+</div>""",
+    unsafe_allow_html=True
+)
